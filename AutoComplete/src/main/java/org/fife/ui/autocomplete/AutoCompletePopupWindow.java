@@ -48,7 +48,7 @@ import org.fife.ui.rsyntaxtextarea.PopupWindowDecorator;
  * @version 1.0
  */
 @SuppressWarnings("checkstyle:MultipleVariableDeclarations")
-class AutoCompletePopupWindow extends JWindow implements CaretListener,
+public class AutoCompletePopupWindow extends JWindow implements CaretListener,
 									ListSelectionListener, MouseListener {
 
 	/**
@@ -138,7 +138,7 @@ class AutoCompletePopupWindow extends JWindow implements CaretListener,
 	 * @param parent The parent window (hosting the text component).
 	 * @param ac The auto-completion instance.
 	 */
-	AutoCompletePopupWindow(Window parent, final AutoCompletion ac) {
+	public AutoCompletePopupWindow(Window parent, final AutoCompletion ac) {
 
 		super(parent);
 		ComponentOrientation o = ac.getTextComponentOrientation();

@@ -58,7 +58,7 @@ import org.fife.ui.rtextarea.ChangeableHighlightPainter;
  * @author Robert Futrell
  * @version 1.0
  */
-class ParameterizedCompletionContext {
+public class ParameterizedCompletionContext {
 
 	/**
 	 * The parent window.
@@ -166,7 +166,7 @@ class ParameterizedCompletionContext {
 	/**
 	 * Constructor.
 	 */
-	ParameterizedCompletionContext(Window owner,
+	public ParameterizedCompletionContext(Window owner,
 			AutoCompletion ac, ParameterizedCompletion pc) {
 
 		this.parentWindow = owner;
