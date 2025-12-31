@@ -15,6 +15,8 @@ import java.util.List;
 import javax.swing.ListCellRenderer;
 import javax.swing.text.JTextComponent;
 
+import org.fife.ui.autocomplete.TextSession;
+
 
 /**
  * Provides autocompletion values to an {@link AutoCompletion}.<p>
@@ -48,8 +50,27 @@ public interface CompletionProvider {
 	 *         should be auto-completed; a value of an empty string
 	 *         (<code>""</code>) means auto-completion should still be
 	 *         considered (i.e., all possible choices are valid).
+	 * @deprecated Use {@link #getAlreadyEnteredText(TextSession)} for
+	 *             UI-agnostic text access.
 	 */
+	@Deprecated
 	String getAlreadyEnteredText(JTextComponent comp);
+
+	/**
+	 * Returns the text just before the current caret position that could be
+	 * the start of something auto-completable.
+	 *
+	 * @param session The text session.
+	 * @return The text.
+	 * @since 3.4
+	 */
+	default String getAlreadyEnteredText(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getAlreadyEnteredText(tc);
+		}
+		throw new UnsupportedOperationException("CompletionProvider does not support TextSession");
+	}
 
 
 	/**
@@ -59,8 +80,27 @@ public interface CompletionProvider {
 	 * @param comp The text component.
 	 * @return The list of {@link Completion}s.  If no completions are
 	 *         available, this method should return an empty list.
+	 * @deprecated Use {@link #getCompletions(TextSession)}.
 	 */
+	@Deprecated
 	List<Completion> getCompletions(JTextComponent comp);
+
+	/**
+	 * Gets the possible completions for the text component at the current
+	 * caret position.
+	 *
+	 * @param session The text session.
+	 * @return The list of {@link Completion}s.  If no completions are
+	 *         available, this method should return an empty list.
+	 * @since 3.4
+	 */
+	default List<Completion> getCompletions(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getCompletions(tc);
+		}
+		throw new UnsupportedOperationException("CompletionProvider does not support TextSession");
+	}
 
 
 	/**
@@ -71,8 +111,28 @@ public interface CompletionProvider {
 	 * @param comp The text component.
 	 * @param p The position, usually from a {@code MouseEvent}.
 	 * @return The completions, or an empty list if there are none.
+	 * @deprecated Use {@link #getCompletionsAt(TextSession, Point)}.
 	 */
+	@Deprecated
 	List<Completion> getCompletionsAt(JTextComponent comp, Point p);
+
+	/**
+	 * Returns the completions that have been entered at the specified visual
+	 * location.  This can be used for tool tips when the user hovers the
+	 * mouse over completed text.
+	 *
+	 * @param session The text session.
+	 * @param p The position, usually from a {@code MouseEvent}.
+	 * @return The completions, or an empty list if there are none.
+	 * @since 3.4
+	 */
+	default List<Completion> getCompletionsAt(TextSession session, Point p) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getCompletionsAt(tc, p);
+		}
+		throw new UnsupportedOperationException("CompletionProvider does not support TextSession");
+	}
 
 
 	/**
@@ -105,8 +165,28 @@ public interface CompletionProvider {
 	 * @param tc The text component.
 	 * @return The list of {@link ParameterizedCompletion}s.  If no completions
 	 *         are available, this may be <code>null</code>.
+	 * @deprecated Use {@link #getParameterizedCompletions(TextSession)}.
 	 */
+	@Deprecated
 	List<ParameterizedCompletion> getParameterizedCompletions(JTextComponent tc);
+
+	/**
+	 * Returns a list of parameterized completions that have been entered
+	 * at the current caret position of a text component (and thus can have
+	 * their completion choices displayed).
+	 *
+	 * @param session The text session.
+	 * @return The list of {@link ParameterizedCompletion}s.  If no completions
+	 *         are available, this may be <code>null</code>.
+	 * @since 3.4
+	 */
+	default List<ParameterizedCompletion> getParameterizedCompletions(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getParameterizedCompletions(tc);
+		}
+		throw new UnsupportedOperationException("CompletionProvider does not support TextSession");
+	}
 
 
 	/**
@@ -167,8 +247,31 @@ public interface CompletionProvider {
 	 *
 	 * @param tc The text component.
 	 * @return Whether auto-activation would be appropriate.
+	 * @deprecated Use {@link #isAutoActivateOkay(TextSession)}.
 	 */
+	@Deprecated
 	boolean isAutoActivateOkay(JTextComponent tc);
+
+	/**
+	 * This method is called if auto-activation is enabled in the parent
+	 * {@link AutoCompletion} after the user types a single character.  This
+	 * provider should check the text at the current caret position of the
+	 * text component, and decide whether auto-activation would be appropriate
+	 * here.  For example, a <code>CompletionProvider</code> for Java might
+	 * want to return <code>true</code> for this method only if the last
+	 * character typed was a '<code>.</code>'.
+	 *
+	 * @param session The text session.
+	 * @return Whether auto-activation would be appropriate.
+	 * @since 3.4
+	 */
+	default boolean isAutoActivateOkay(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return isAutoActivateOkay(tc);
+		}
+		throw new UnsupportedOperationException("CompletionProvider does not support TextSession");
+	}
 
 
 	/**

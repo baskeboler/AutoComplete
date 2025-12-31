@@ -59,8 +59,27 @@ public interface Completion extends Comparable<Completion> {
 	 *
 	 * @param comp The text component.
 	 * @return The already-entered portion of this completion.
+	 * @deprecated Use {@link #getAlreadyEntered(TextSession)} for UI-agnostic
+	 *             access.
 	 */
+	@Deprecated
 	String getAlreadyEntered(JTextComponent comp);
+
+	/**
+	 * Returns the portion of this completion that has already been entered
+	 * into the text component.
+	 *
+	 * @param session The text session.
+	 * @return The already-entered portion of this completion.
+	 * @since 3.4
+	 */
+	default String getAlreadyEntered(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getAlreadyEntered(tc);
+		}
+		throw new UnsupportedOperationException("Completion does not support TextSession");
+	}
 
 
 	/**

@@ -17,6 +17,8 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Segment;
 
+import org.fife.ui.autocomplete.TextSession;
+
 
 /**
  * A base class for all standard completion providers.  This class implements
@@ -118,6 +120,22 @@ public abstract class CompletionProviderBase implements CompletionProvider {
 
 	}
 
+	@Override
+	public List<Completion> getCompletions(TextSession session) {
+		List<Completion> completions = getCompletionsImpl(session);
+		if (parent != null) {
+			List<Completion> parentCompletions = parent.getCompletions(session);
+			if (parentCompletions != null) {
+				completions.addAll(parentCompletions);
+				Collections.sort(completions);
+			}
+		}
+		if (/*sortByRelevance*/true) {
+			completions.sort(SORT_BY_RELEVANCE_COMPARATOR);
+		}
+		return completions;
+	}
+
 
 	/**
 	 * Does the dirty work of creating a list of completions.
@@ -127,6 +145,22 @@ public abstract class CompletionProviderBase implements CompletionProvider {
 	 *         are none.
 	 */
 	protected abstract List<Completion> getCompletionsImpl(JTextComponent comp);
+
+	/**
+	 * Does the dirty work of creating a list of completions.
+	 *
+	 * @param session The text session to look in.
+	 * @return The list of possible completions, or an empty list if there are
+	 *         none.
+	 * @since 3.4
+	 */
+	protected List<Completion> getCompletionsImpl(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getCompletionsImpl(tc);
+		}
+		throw new UnsupportedOperationException("CompletionProviderBase requires TextSession support");
+	}
 
 
 	@Override
@@ -177,6 +211,15 @@ public abstract class CompletionProviderBase implements CompletionProvider {
 		}
 		return (autoActivateAfterLetters && Character.isLetter(ch)) ||
 				(autoActivateChars!=null && autoActivateChars.indexOf(ch)>-1);
+	}
+
+	@Override
+	public boolean isAutoActivateOkay(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return isAutoActivateOkay(tc);
+		}
+		return false;
 	}
 
 

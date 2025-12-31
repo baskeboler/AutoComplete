@@ -120,6 +120,35 @@ public class DefaultCompletionProvider extends AbstractCompletionProvider {
 
 	}
 
+	@Override
+	public String getAlreadyEnteredText(TextSession session) {
+
+		Document doc = session.getDocument();
+
+		int dot = session.getCaretPosition();
+		Element root = doc.getDefaultRootElement();
+		int index = root.getElementIndex(dot);
+		Element elem = root.getElement(index);
+		int start = elem.getStartOffset();
+		int len = dot-start;
+		try {
+			doc.getText(start, len, seg);
+		} catch (BadLocationException ble) {
+			ble.printStackTrace();
+			return EMPTY_STRING;
+		}
+
+		int segEnd = seg.offset + len;
+		start = segEnd - 1;
+		while (start>=seg.offset && isValidChar(seg.array[start])) {
+			start--;
+		}
+		start++;
+
+		len = segEnd - start;
+		return len==0 ? EMPTY_STRING : new String(seg.array, start, len);
+	}
+
 
 	@Override
 	public List<Completion> getCompletionsAt(JTextComponent tc, Point p) {
@@ -176,6 +205,15 @@ public class DefaultCompletionProvider extends AbstractCompletionProvider {
 		lastCompletionsAtText = null;
 		return lastParameterizedCompletionsAt = null;
 
+	}
+
+	@Override
+	public List<Completion> getCompletionsAt(TextSession session, Point p) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getCompletionsAt(tc, p);
+		}
+		return new ArrayList<>();
 	}
 
 
@@ -241,6 +279,63 @@ public class DefaultCompletionProvider extends AbstractCompletionProvider {
 
 		return list;
 
+	}
+
+	@Override
+	public List<ParameterizedCompletion> getParameterizedCompletions(TextSession session) {
+		JTextComponent tc = session.getAsJTextComponent();
+		if (tc != null) {
+			return getParameterizedCompletions(tc);
+		}
+
+		List<ParameterizedCompletion> list = null;
+		char paramListStart = getParameterListStart();
+		if (paramListStart == 0) {
+			return list;
+		}
+
+		int dot = session.getCaretPosition();
+		Segment s = new Segment();
+		Document doc = session.getDocument();
+		Element root = doc.getDefaultRootElement();
+		int line = root.getElementIndex(dot);
+		Element elem = root.getElement(line);
+		int offs = elem.getStartOffset();
+		int len = dot - offs - 1;
+		if (len <= 0) {
+			return list;
+		}
+
+		try {
+			doc.getText(offs, len, s);
+
+			offs = s.offset + len - 1;
+			while (offs >= s.offset && Character.isWhitespace(s.array[offs])) {
+				offs--;
+			}
+			int end = offs;
+			while (offs >= s.offset && isValidChar(s.array[offs])) {
+				offs--;
+			}
+
+			String text = new String(s.array, offs + 1, end - offs);
+
+			List<Completion> l = getCompletionByInputText(text);
+			if (l != null && !l.isEmpty()) {
+				for (Object o : l) {
+					if (o instanceof ParameterizedCompletion) {
+						if (list == null) {
+							list = new ArrayList<>(1);
+						}
+						list.add((ParameterizedCompletion) o);
+					}
+				}
+			}
+		} catch (BadLocationException ble) {
+			ble.printStackTrace();
+		}
+
+		return list;
 	}
 
 
