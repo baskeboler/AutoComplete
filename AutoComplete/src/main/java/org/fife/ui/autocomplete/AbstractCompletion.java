@@ -11,6 +11,8 @@ package org.fife.ui.autocomplete;
 import javax.swing.Icon;
 import javax.swing.text.JTextComponent;
 
+import org.fife.ui.autocomplete.TextSession;
+
 
 /**
  * Base class for possible completions.  Most, if not all, {@link Completion}
@@ -86,6 +88,14 @@ public abstract class AbstractCompletion implements Completion {
 	@Override
 	public String getAlreadyEntered(JTextComponent comp) {
 		return provider.getAlreadyEnteredText(comp);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public String getAlreadyEntered(TextSession session) {
+		return provider.getAlreadyEnteredText(session);
 	}
 
 

@@ -205,6 +205,40 @@ public abstract class AbstractCompletionProvider
 
 	}
 
+	@Override
+	protected List<Completion> getCompletionsImpl(TextSession session) {
+		List<Completion> retVal = new ArrayList<>();
+		String text = getAlreadyEnteredText(session);
+
+		if (text != null) {
+			int index = Collections.binarySearch(completions, text, comparator);
+			if (index < 0) {
+				index = -index - 1;
+			}
+			else {
+				int pos = index - 1;
+				while (pos > 0 &&
+						comparator.compare(completions.get(pos), text) == 0) {
+					retVal.add(completions.get(pos));
+					pos--;
+				}
+			}
+
+			while (index<completions.size()) {
+				Completion c = completions.get(index);
+				if (Util.startsWithIgnoreCase(c.getInputText(), text)) {
+					retVal.add(c);
+					index++;
+				}
+				else {
+					break;
+				}
+			}
+		}
+
+		return retVal;
+	}
+
 
 	/**
 	 * Removes the specified completion from this provider.  This method

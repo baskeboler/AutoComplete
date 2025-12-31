@@ -16,6 +16,10 @@ import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 
+import org.fife.ui.autocomplete.ui.AutoCompletionUI;
+import org.fife.ui.autocomplete.ui.NoOpAutoCompletionUI;
+import org.fife.ui.autocomplete.ui.SwingAutoCompletionUI;
+
 
 /* This class handles intercepting window and hierarchy events from the text
  * component, so the popup window is only visible when it should be visible. It
@@ -51,6 +55,10 @@ public class AutoCompletion {
 	 */
 	private JTextComponent textComponent;
 
+	/**
+	 * UI-agnostic text session backing this auto-completion instance.
+	 */
+	private TextSession textSession;
 	/**
 	 * The parent window of {@link #textComponent}.
 	 */
@@ -90,6 +98,10 @@ public class AutoCompletion {
 	 */
 	private CompletionProvider provider;
 
+	/**
+	 * Strategy for rendering UI popups.
+	 */
+	private AutoCompletionUI ui;
 	/**
 	 * The renderer to use for the completion choices. If this is
 	 * <code>null</code>, then a default renderer is used.
@@ -280,6 +292,7 @@ public class AutoCompletion {
 		lafListener = new LookAndFeelChangeListener();
 		popupWindowListener = new PopupWindowListener();
 		listeners = new EventListenerList();
+		ui = new SwingAutoCompletionUI();
 
 	}
 
@@ -364,6 +377,17 @@ public class AutoCompletion {
 
 
 	/**
+	 * Returns the UI strategy backing this auto-completion.
+	 *
+	 * @return The UI strategy.
+	 * @since 3.4
+	 */
+	public AutoCompletionUI getUi() {
+		return ui;
+	}
+
+
+	/**
 	 * Returns whether debug is enabled for AutoCompletion.
 	 *
 	 * @return Whether debug is enabled.
@@ -400,9 +424,12 @@ public class AutoCompletion {
 
 
 	int getLineOfCaret() {
-		Document doc = textComponent.getDocument();
+		if (textSession == null) {
+			return -1;
+		}
+		Document doc = textSession.getDocument();
 		Element root = doc.getDefaultRootElement();
-		return root.getElementIndex(textComponent.getCaretPosition());
+		return root.getElementIndex(textSession.getCaretPosition());
 	}
 
 
@@ -521,6 +548,16 @@ public class AutoCompletion {
 
 
 	/**
+	 * Returns the text session backing this auto-completion instance.
+	 *
+	 * @return The text session, or <code>null</code> if not installed.
+	 * @since 3.4
+	 */
+	public TextSession getTextSession() {
+		return textSession;
+	}
+
+	/**
 	 * Returns the orientation of the text component we're installed to.
 	 *
 	 * @return The orientation of the text component, or <code>null</code> if we
@@ -627,20 +664,20 @@ public class AutoCompletion {
 	protected void insertCompletion(Completion c,
 			boolean typedParamListStartChar) {
 
-		JTextComponent textComp = getTextComponent();
-		String alreadyEntered = c.getAlreadyEntered(textComp);
-		hidePopupWindow();
-		Caret caret = textComp.getCaret();
+		if (textSession == null) {
+			return;
+		}
 
-		int dot = caret.getDot();
+		String alreadyEntered = c.getAlreadyEntered(textSession);
+		hidePopupWindow();
+		int dot = textSession.getCaretPosition();
 		int len = alreadyEntered.length();
 		int start = dot - len;
-		String replacement = getReplacementText(c, textComp.getDocument(),
+		String replacement = getReplacementText(c, textSession.getDocument(),
 				start, len);
 
-		caret.setDot(start);
-		caret.moveDot(dot);
-		textComp.replaceSelection(replacement);
+		textSession.select(start, dot);
+		textSession.replaceRange(replacement, start, dot);
 
 		if (isParameterAssistanceEnabled() &&
 				c instanceof ParameterizedCompletion) {
@@ -658,44 +695,64 @@ public class AutoCompletion {
 	 *
 	 * @param c The text component.
 	 * @see #uninstall()
+	 * @deprecated Use {@link #install(TextSession)} for UI-agnostic access.
 	 */
+	@Deprecated
 	public void install(JTextComponent c) {
+		install(new SwingTextSessionAdapter(c));
+	}
 
-		if (textComponent != null) {
+	/**
+	 * Installs this auto-completion on a {@link TextSession}. If this
+	 * {@link AutoCompletion} is already installed on another session, it is
+	 * uninstalled first.
+	 *
+	 * @param session The text session.
+	 * @see #uninstall()
+	 * @since 3.4
+	 */
+	public void install(TextSession session) {
+
+		if (session == null) {
+			throw new IllegalArgumentException("session cannot be null");
+		}
+
+		if (textSession != null) {
 			uninstall();
 		}
 
-		this.textComponent = c;
-		installTriggerKey(getTriggerKey());
+		this.textSession = session;
+		this.textComponent = session.getAsJTextComponent();
 
-		// Install the function completion key, if there is one.
-		// NOTE: We cannot do this if the start char is ' ' (e.g. just a space
-		// between the function name and parameters) because it overrides
-		// RSTA's special space action. It seems KeyStroke.getKeyStroke(' ')
-		// hoses ctrl+space, shift+space, etc., even though I think it
-		// shouldn't...
-		char start = provider.getParameterListStart();
-		if (start != 0 && start != ' ') {
-			InputMap im = c.getInputMap();
-			ActionMap am = c.getActionMap();
-			KeyStroke ks = KeyStroke.getKeyStroke(start);
-			oldParenKey = im.get(ks);
-			im.put(ks, PARAM_COMPLETE_KEY);
-			oldParenAction = am.get(PARAM_COMPLETE_KEY);
-			am.put(PARAM_COMPLETE_KEY, new ParameterizedCompletionStartAction(
-					start));
+		if (textComponent != null) {
+			installTriggerKey(getTriggerKey());
+
+			char start = provider.getParameterListStart();
+			if (start != 0 && start != ' ') {
+				InputMap im = textComponent.getInputMap();
+				ActionMap am = textComponent.getActionMap();
+				KeyStroke ks = KeyStroke.getKeyStroke(start);
+				oldParenKey = im.get(ks);
+				im.put(ks, PARAM_COMPLETE_KEY);
+				oldParenAction = am.get(PARAM_COMPLETE_KEY);
+				am.put(PARAM_COMPLETE_KEY, new ParameterizedCompletionStartAction(
+						start));
+			}
+
+			textComponentListener.addTo(this.textComponent);
+			textComponentListener.hierarchyChanged(null);
+
+			if (isAutoActivationEnabled()) {
+				autoActivationListener.addTo(this.textComponent);
+			}
 		}
 
-		textComponentListener.addTo(this.textComponent);
-		// In case textComponent is already in a window...
-		textComponentListener.hierarchyChanged(null);
-
-		if (isAutoActivationEnabled()) {
-			autoActivationListener.addTo(this.textComponent);
+		if (ui != null) {
+			ui.onInstall(this, session);
 		}
 
 		UIManager.addPropertyChangeListener(lafListener);
-		updateUI(); // In case there have been changes since we uninstalled
+		updateUI();
 
 	}
 
@@ -817,8 +874,12 @@ public class AutoCompletion {
 	 */
 	protected int refreshPopupWindow() {
 
+		if (textSession == null) {
+			return -1;
+		}
+
 		// A return value of null => don't suggest completions
-		String text = provider.getAlreadyEnteredText(textComponent);
+		String text = provider.getAlreadyEnteredText(textSession);
 		if (text == null && !isPopupVisible()) {
 			return getLineOfCaret();
 		}
@@ -836,14 +897,24 @@ public class AutoCompletion {
 		}
 
 		final List<Completion> completions = provider
-				.getCompletions(textComponent);
+				.getCompletions(textSession);
 		int count = completions==null ? 0 : completions.size();
+
+		if (textComponent == null) {
+			if (count == 1 && getAutoCompleteSingleChoices()) {
+				SwingUtilities.invokeLater(() -> insertCompletion(completions.get(0)));
+			}
+			return getLineOfCaret();
+		}
 
 		if (count > 1 || (count == 1 && (isPopupVisible() || textLen == 0)) ||
 				(count == 1 && !getAutoCompleteSingleChoices())) {
 
 			if (popupWindow == null) {
-				popupWindow = new AutoCompletePopupWindow(parentWindow, this);
+				popupWindow = ui != null ? ui.createPopupWindow(parentWindow, this) : null;
+				if (popupWindow == null) {
+					return getLineOfCaret();
+				}
 				popupWindowListener.install(popupWindow);
 				// Completion is usually done for code, which is always done
 				// LTR, so make completion stuff RTL only if text component is
@@ -986,6 +1057,18 @@ public class AutoCompletion {
 		if (isHideOnCompletionProviderChange()) {
 			hidePopupWindow(); // In case new choices should be displayed.
 		}
+	}
+
+
+	/**
+	 * Sets the UI strategy to use for rendering popups.
+	 *
+	 * @param ui The UI strategy. If <code>null</code>, a no-op implementation
+	 *           is used.
+	 * @since 3.4
+	 */
+	public void setUi(AutoCompletionUI ui) {
+		this.ui = ui != null ? ui : new NoOpAutoCompletionUI();
 	}
 
 
@@ -1196,6 +1279,10 @@ public class AutoCompletion {
 	private void startParameterizedCompletionAssistance(
 			ParameterizedCompletion pc, boolean typedParamListStartChar) {
 
+		if (textSession == null) {
+			return;
+		}
+
 		// Get rid of the previous tool tip window, if there is one.
 		hideParameterCompletionPopups();
 
@@ -1207,20 +1294,26 @@ public class AutoCompletion {
 			String text = end == '\0' ? "" : Character.toString(end);
 			if (typedParamListStartChar) {
 				String template = "${}" + text + "${cursor}";
-				textComponent.replaceSelection(Character.toString(p
-						.getParameterListStart()));
+				textSession.replaceRange(Character.toString(p
+						.getParameterListStart()), textSession.getSelectionStart(),
+					textSession.getSelectionEnd());
 				pc = new TemplateCompletion(p, null, null,
 					template);
 			}
 			else {
 				text = p.getParameterListStart() + text;
-				textComponent.replaceSelection(text);
+				textSession.replaceRange(text, textSession.getSelectionStart(),
+					textSession.getSelectionEnd());
 				return;
 			}
 		}
 
-		pcc = new ParameterizedCompletionContext(parentWindow, this, pc);
-		pcc.activate();
+		if (ui != null) {
+			pcc = ui.createParameterizedCompletionContext(parentWindow, this, pc);
+			if (pcc != null) {
+				pcc.activate();
+			}
+		}
 
 	}
 
@@ -1258,12 +1351,15 @@ public class AutoCompletion {
 				autoActivationListener.removeFrom(textComponent);
 			}
 
-			UIManager.removePropertyChangeListener(lafListener);
-
 			textComponent = null;
-			popupWindowListener.uninstall(popupWindow);
-			popupWindow = null;
+		}
 
+		popupWindowListener.uninstall(popupWindow);
+		popupWindow = null;
+		textSession = null;
+		UIManager.removePropertyChangeListener(lafListener);
+		if (ui != null) {
+			ui.onUninstall(this);
 		}
 
 	}
@@ -1367,7 +1463,7 @@ public class AutoCompletion {
 			justInserted = false;
 			if (isAutoCompleteEnabled() && isAutoActivationEnabled() &&
 					e.getLength() == 1) {
-				if (textComponent != null && provider.isAutoActivateOkay(textComponent)) {
+				if (textSession != null && provider.isAutoActivateOkay(textSession)) {
 					timer.restart();
 					justInserted = true;
 				}
